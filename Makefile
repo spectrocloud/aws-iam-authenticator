@@ -17,7 +17,7 @@ CHECKSUM_FILE ?= $(OUTPUT)/bin/authenticator_$(VERSION)_checksums.txt
 # Architectures for binary builds
 BIN_ARCH_LINUX ?= amd64 arm64
 BIN_ARCH_WINDOWS ?= amd64
-BIN_ARCH_DARWIN ?= amd64
+BIN_ARCH_DARWIN ?= amd64 arm64
 
 #CI is defined in test-infra https://github.com/kubernetes/test-infra/blob/2e3dd84399745eb49cef69afc3ed5bded8a6580c/prow/pod-utils/downwardapi/jobspec.go#L89
 # and passed in when running on github prow
@@ -73,7 +73,7 @@ $(OUTPUT)/bin/%: $(SOURCES)
 # 3: Target file extension
 # Note: the blank line at the end of the function is required.
 define build-bin
-$(MAKE) $(OUTPUT)/bin/aws-iam-authenticator_$(VERSION)_$(1)_$(2)$(3) GOOS=$(1) GOARCH=$(2)
+$(MAKE) $(OUTPUT)/bin/$(VERSION)_$(1)_$(2)$(3)/aws-iam-authenticator GOOS=$(1) GOARCH=$(2)
 
 endef
 
