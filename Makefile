@@ -15,7 +15,7 @@ OUTPUT ?= $(shell pwd)/_output
 CHECKSUM_FILE ?= $(OUTPUT)/bin/authenticator_$(VERSION)_checksums.txt
 
 # Architectures for binary builds
-BIN_ARCH_LINUX ?= amd64 arm64
+BIN_ARCH_LINUX ?= amd64
 BIN_ARCH_WINDOWS ?= amd64
 BIN_ARCH_DARWIN ?= amd64 arm64
 
@@ -57,13 +57,14 @@ $(CHECKSUM_FILE): build-all-bins
 
 $(OUTPUT)/bin/%: $(SOURCES)
 	GO111MODULE=on \
-		CGO_ENABLED=0 \
+		CGO_ENABLED=1 \
 		GOOS=$(GOOS) \
 		GOARCH=$(GOARCH) \
 		GOPROXY=$(GOPROXY) \
+		GOEXPERIMENT=boringcrypto \
 		go build \
 		-o=$@ \
-		-ldflags="-w -s -X $(PKG)/pkg.Version=$(VERSION) -X $(PKG)/pkg.BuildDate=$(BUILD_DATE) -X $(PKG)/pkg.CommitID=$(GIT_COMMIT)" \
+		-ldflags="-w -s -linkmode=external -extldflags "-static" -X $(PKG)/pkg.Version=$(VERSION) -X $(PKG)/pkg.BuildDate=$(BUILD_DATE) -X $(PKG)/pkg.CommitID=$(GIT_COMMIT)" \
 		./cmd/aws-iam-authenticator/
 
 # Function build-bin
@@ -80,8 +81,8 @@ endef
 .PHONY: build-all-bins
 build-all-bins:
 	$(foreach arch,$(BIN_ARCH_LINUX),$(call build-bin,linux,$(arch),))
-	$(foreach arch,$(BIN_ARCH_WINDOWS),$(call build-bin,windows,$(arch),.exe))
-	$(foreach arch,$(BIN_ARCH_DARWIN),$(call build-bin,darwin,$(arch),))
+# $(foreach arch,$(BIN_ARCH_WINDOWS),$(call build-bin,windows,$(arch),.exe))
+# $(foreach arch,$(BIN_ARCH_DARWIN),$(call build-bin,darwin,$(arch),))
 
 .PHONY: image
 image:
