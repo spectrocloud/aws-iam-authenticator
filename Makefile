@@ -12,12 +12,16 @@ GIT_COMMIT ?= $(shell git rev-parse HEAD)
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BUILD_DATE_STRIPPED := $(subst -,,$(subst :,,$(BUILD_DATE)))
 OUTPUT ?= $(shell pwd)/_output
+OUTPUT_FIPS ?= $(shell pwd)/_output
 CHECKSUM_FILE ?= $(OUTPUT)/bin/authenticator_$(VERSION)_checksums.txt
 
 # Architectures for binary builds
-BIN_ARCH_LINUX ?= amd64
+BIN_ARCH_LINUX ?= amd64 arm64
 BIN_ARCH_WINDOWS ?= amd64
 BIN_ARCH_DARWIN ?= amd64 arm64
+
+# Arch for fips build
+BIN_ARCH_LINUX_FIPS ?= amd64
 
 #CI is defined in test-infra https://github.com/kubernetes/test-infra/blob/2e3dd84399745eb49cef69afc3ed5bded8a6580c/prow/pod-utils/downwardapi/jobspec.go#L89
 # and passed in when running on github prow
@@ -57,11 +61,22 @@ $(CHECKSUM_FILE): build-all-bins
 
 $(OUTPUT)/bin/%: $(SOURCES)
 	GO111MODULE=on \
-		CGO_ENABLED=1 \
+		CGO_ENABLED=0 \
 		GOOS=$(GOOS) \
 		GOARCH=$(GOARCH) \
 		GOPROXY=$(GOPROXY) \
+		go build \
+		-o=$@ \
+		-ldflags="-w -s -X $(PKG)/pkg.Version=$(VERSION) -X $(PKG)/pkg.BuildDate=$(BUILD_DATE) -X $(PKG)/pkg.CommitID=$(GIT_COMMIT)" \
+		./cmd/aws-iam-authenticator/
+
+$(OUTPUT_FIPS)/bin/%: $(SOURCES)
+	GO111MODULE=on \
+		CGO_ENABLED=1 \
+		GOOS=linux \
+		GOARCH=amd64 \
 		GOEXPERIMENT=boringcrypto \
+		GOPROXY=$(GOPROXY) \
 		go build \
 		-o=$@ \
 		-ldflags="-w -s -linkmode=external -extldflags "-static" -X $(PKG)/pkg.Version=$(VERSION) -X $(PKG)/pkg.BuildDate=$(BUILD_DATE) -X $(PKG)/pkg.CommitID=$(GIT_COMMIT)" \
@@ -78,11 +93,21 @@ $(MAKE) $(OUTPUT)/bin/$(VERSION)_$(1)_$(2)$(3)/aws-iam-authenticator_$(1)_$(2)$(
 
 endef
 
+define build-bin-fips
+$(MAKE) $(OUTPUT_FIPS)/bin/$(VERSION)_$(1)_$(2)$(3)/aws-iam-authenticator_$(1)_$(2)$(3)-fips GOOS=$(1) GOARCH=$(2)
+
+endef
+
 .PHONY: build-all-bins
+ifeq ($(FIPS_ENABLE),yes)
+build-all-bins:
+	$(foreach arch,$(BIN_ARCH_LINUX_FIPS),$(call build-bin-fips,linux,amd64,))
+else	
 build-all-bins:
 	$(foreach arch,$(BIN_ARCH_LINUX),$(call build-bin,linux,$(arch),))
-# $(foreach arch,$(BIN_ARCH_WINDOWS),$(call build-bin,windows,$(arch),.exe))
-# $(foreach arch,$(BIN_ARCH_DARWIN),$(call build-bin,darwin,$(arch),))
+	$(foreach arch,$(BIN_ARCH_WINDOWS),$(call build-bin,windows,$(arch),.exe))
+	$(foreach arch,$(BIN_ARCH_DARWIN),$(call build-bin,darwin,$(arch),))
+endif	
 
 .PHONY: image
 image:
